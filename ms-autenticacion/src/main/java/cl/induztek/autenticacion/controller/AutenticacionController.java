@@ -58,6 +58,16 @@ public class AutenticacionController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/{id}/contrasena")
+    public ResponseEntity<?> cambiarContrasena(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        try {
+            service.cambiarContrasena(id, body.get("contrasenaActual"), body.get("nuevaContrasena"));
+            return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // DELETE
     @DeleteMapping("/eliminar/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
@@ -88,5 +98,32 @@ public class AutenticacionController {
         return service.actualizarAvatar(id, archivo)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // -- RECUPERACION DE CONTRASEÑA -- //
+    @PostMapping("/solicitar-codigo")
+    public ResponseEntity<?> solicitarCodigo(@RequestBody Map<String, String> body) {
+        try {
+            service.solicitarCodigoRecuperacion(body.get("correo"));
+            return ResponseEntity.ok(Map.of("mensaje", "Código enviado al correo"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("error", "No se pudo enviar el correo de verificación"));
+        }
+    }
+
+    @PutMapping("/recuperar-contrasena")
+    public ResponseEntity<?> recuperarContrasena(@RequestBody Map<String, String> body) {
+        try {
+            service.recuperarContrasenaConCodigo(
+                    body.get("correo"),
+                    body.get("codigo"),
+                    body.get("nuevaContrasena"));
+            return ResponseEntity.ok(Map.of("mensaje", "Contraseña restablecida con éxito"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

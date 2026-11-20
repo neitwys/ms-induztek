@@ -1,11 +1,16 @@
 package cl.induztek.autenticacion.service;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
 import cl.induztek.autenticacion.repository.AutenticacionRepository;
 import cl.induztek.autenticacion.model.Usuario;
 import cl.induztek.autenticacion.model.UsuarioDTO;
@@ -14,6 +19,9 @@ import cl.induztek.autenticacion.model.UsuarioDTO;
 public class AutenticacionService {
     private final AutenticacionRepository repository;
     private final PasswordEncoder passwordEncoder;
+    // Para la conexión con el microservicio de notificaciones
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final SecureRandom random = new SecureRandom();
 
     public AutenticacionService(AutenticacionRepository repository, PasswordEncoder passwordEncoder) {
         this.repository = repository;
@@ -27,7 +35,6 @@ public class AutenticacionService {
         usuarioDTO.setNombre(usuario.getNombre());
         usuarioDTO.setCorreo(usuario.getCorreo());
         usuarioDTO.setRol(usuario.getRol());
-        usuarioDTO.setTipoPreguntaClave(usuario.getTipoPreguntaClave());
         usuarioDTO.setFotoPerfil(usuario.getFotoPerfil());
         usuarioDTO.setEmpresaId(usuario.getEmpresaId());
         return usuarioDTO;
@@ -40,15 +47,10 @@ public class AutenticacionService {
         usuario.setNombre(usuarioDTO.getNombre().trim());
         usuario.setCorreo(usuarioDTO.getCorreo().trim().toLowerCase());
         usuario.setRol(usuarioDTO.getRol());
-        usuario.setTipoPreguntaClave(usuarioDTO.getTipoPreguntaClave());
         usuario.setFotoPerfil(usuarioDTO.getFotoPerfil());
         usuario.setEmpresaId(usuarioDTO.getEmpresaId());
         if (usuarioDTO.getContrasena() != null && !usuarioDTO.getContrasena().isBlank()) {
             usuario.setContrasena(passwordEncoder.encode(usuarioDTO.getContrasena().trim()));
-        }
-        if (usuarioDTO.getRespuestaPreguntaClave() != null && !usuarioDTO.getRespuestaPreguntaClave().isBlank()) {
-            String respNormalizada = usuarioDTO.getRespuestaPreguntaClave().trim().toLowerCase();
-            usuario.setRespuestaPreguntaClave(passwordEncoder.encode(respNormalizada));
         }
         return usuario;
     }
@@ -64,7 +66,7 @@ public class AutenticacionService {
         return aDTO(guardado);
     }
 
-    // READ
+    // LOGIN
     public UsuarioDTO autenticarUsuario(String correo, String contrasenaPlana) {
         Usuario usuario = repository.findByCorreo(correo.trim().toLowerCase());
         if (usuario == null || !passwordEncoder.matches(contrasenaPlana.trim(), usuario.getContrasena())) {
@@ -73,6 +75,7 @@ public class AutenticacionService {
         return aDTO(usuario);
     }
 
+    // READ
     public List<UsuarioDTO> obtenerTodos() {
         List<Usuario> usuarios = repository.findAll();
         List<UsuarioDTO> lista = new ArrayList<>();
@@ -106,9 +109,6 @@ public class AutenticacionService {
         if (dto.getRol() != null) {
             usuarioExistente.setRol(dto.getRol());
         }
-        if (dto.getTipoPreguntaClave() != null) {
-            usuarioExistente.setTipoPreguntaClave(dto.getTipoPreguntaClave());
-        }
         if (dto.getFotoPerfil() != null) {
             usuarioExistente.setFotoPerfil(dto.getFotoPerfil());
         }
@@ -117,10 +117,6 @@ public class AutenticacionService {
         }
         if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
             usuarioExistente.setContrasena(passwordEncoder.encode(dto.getContrasena().trim()));
-        }
-        if (dto.getRespuestaPreguntaClave() != null && !dto.getRespuestaPreguntaClave().isBlank()) {
-            String respNormalizada = dto.getRespuestaPreguntaClave().trim().toLowerCase();
-            usuarioExistente.setRespuestaPreguntaClave(passwordEncoder.encode(respNormalizada));
         }
 
         return Optional.of(aDTO(repository.save(usuarioExistente)));
@@ -156,5 +152,69 @@ public class AutenticacionService {
         } catch (java.io.IOException e) {
             throw new RuntimeException("No se pudo guardar la imagen en el servidor", e);
         }
+    }
+
+    // CAMBIAR CONTRASEÑA DESDE PERFIL
+    public void cambiarContrasena(Long id, String contrasenaActual, String nuevaContrasena) {
+        Usuario usuario = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+
+        if (!passwordEncoder.matches(contrasenaActual.trim(), usuario.getContrasena())) {
+            throw new IllegalArgumentException("La contraseña actual es incorrecta");
+        }
+        if (nuevaContrasena == null || nuevaContrasena.trim().length() < 8) {
+            throw new IllegalArgumentException("La nueva contraseña debe tener al menos 8 caracteres");
+        }
+
+        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena.trim()));
+        repository.save(usuario);
+    }
+
+    // PASOS PARA RECUPERACIÓN DE CONTRASEÑA
+    // PASO 1 RECUPERACIÓN: GENERAR CÓDIGO Y LLAMAR A MS-NOTIFICACIONES
+    public void solicitarCodigoRecuperacion(String correo) {
+        Usuario usuario = repository.findByCorreo(correo.trim().toLowerCase());
+        if (usuario == null) {
+            throw new IllegalArgumentException("El correo ingresado no se encuentra registrado");
+        }
+
+        String codigoPlano = String.format("%06d", random.nextInt(1_000_000));
+        usuario.setCodigoRecuperacion(passwordEncoder.encode(codigoPlano));
+        usuario.setExpiracionCodigo(LocalDateTime.now().plusMinutes(10));
+        repository.save(usuario);
+
+        String url = "http://ms-notificaciones:8082/api/notificaciones/codigo-recuperacion";
+        Map<String, Object> datosCorreo = Map.of(
+                "destinatario", usuario.getCorreo(),
+                "nombreUsuario", usuario.getNombre(),
+                "codigo", codigoPlano,
+                "minutosExpiracion", 10);
+
+        restTemplate.postForObject(url, datosCorreo, Map.class);
+    }
+
+    // PASO 2 RECUPERACIÓN: VALIDAR CÓDIGO Y ACTUALIZAR CONTRASEÑA
+    public void recuperarContrasenaConCodigo(String correo, String codigo, String nuevaContrasena) {
+        Usuario usuario = repository.findByCorreo(correo.trim().toLowerCase());
+        if (usuario == null) {
+            throw new IllegalArgumentException("Usuario no encontrado");
+        }
+        if (usuario.getCodigoRecuperacion() == null || usuario.getExpiracionCodigo() == null) {
+            throw new IllegalArgumentException("Primero solicita un código de verificación");
+        }
+        if (LocalDateTime.now().isAfter(usuario.getExpiracionCodigo())) {
+            throw new IllegalArgumentException("El código ha expirado. Solicita uno nuevo");
+        }
+        if (!passwordEncoder.matches(codigo.trim(), usuario.getCodigoRecuperacion())) {
+            throw new IllegalArgumentException("El código de verificación es incorrecto");
+        }
+        if (nuevaContrasena == null || nuevaContrasena.trim().length() < 8) {
+            throw new IllegalArgumentException("La nueva contraseña debe tener al menos 8 caracteres");
+        }
+
+        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena.trim()));
+        usuario.setCodigoRecuperacion(null);
+        usuario.setExpiracionCodigo(null);
+        repository.save(usuario);
     }
 }

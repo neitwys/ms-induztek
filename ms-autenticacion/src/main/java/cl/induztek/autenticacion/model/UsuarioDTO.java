@@ -28,10 +28,6 @@ public class UsuarioDTO {
 
     private Long rol;
 
-    private Integer tipoPreguntaClave;
-
-    private String respuestaPreguntaClave;
-
     @Column(name = "foto_perfil")
     private String fotoPerfil;
 
