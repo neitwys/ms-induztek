@@ -1,0 +1,86 @@
+services:
+
+  # ----------------------------------------------------------
+  # SERVICIO 1: MySQL
+  # ----------------------------------------------------------
+  mysql:
+    image: mysql:8.4
+    container_name: mysql-induztek
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: db_autenticacion
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - microservicios-net
+
+  # ----------------------------------------------------------
+  # SERVICIO 2: Eureka Server
+  # ----------------------------------------------------------
+  eureka-server:
+    build:
+      context: ./ms-eureka-server
+      dockerfile: Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    restart: on-failure
+    networks:
+      - microservicios-net
+
+  # ----------------------------------------------------------
+  # SERVICIO 3: ms-autenticacion
+  # ----------------------------------------------------------
+  ms-autenticacion:
+    build:
+      context: ./ms-autenticacion
+      dockerfile: Dockerfile
+    container_name: ms-autenticacion
+    ports:
+      - "8081:8081"
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - microservicios-net
+
+  # ----------------------------------------------------------
+  # SERVICIO 4: api-gateway
+  # ----------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8090:8090"
+    depends_on:
+      eureka-server:
+        condition: service_started
+      ms-autenticacion:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - microservicios-net
+
+volumes:
+  mysql-data:
+  uploads-data:
+
+networks:
+  microservicios-net:
+    driver: bridge

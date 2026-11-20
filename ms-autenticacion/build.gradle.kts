@@ -33,6 +33,9 @@ dependencies {
 	testCompileOnly("org.projectlombok:lombok")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
+
+	//Security para las contraseñas/claves.
+	implementation("org.springframework.boot:spring-boot-starter-security")
 }
 
 dependencyManagement {
