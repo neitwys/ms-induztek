@@ -119,6 +119,8 @@ services:
         condition: service_started
       ms-notificaciones:
         condition: service_started
+      ms-clientes:
+        condition: service_started
     restart: on-failure
     networks:
       - microservicios-net
