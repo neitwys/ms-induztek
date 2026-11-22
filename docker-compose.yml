@@ -84,7 +84,26 @@ services:
       - microservicios-net
 
   # ----------------------------------------------------------
-  # SERVICIO 5: api-gateway
+  # SERVICIO 5: ms-clientes
+  # ----------------------------------------------------------
+  ms-clientes:
+    build:
+      context: ./ms-clientes
+      dockerfile: Dockerfile
+    container_name: ms-clientes
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - microservicios-net
+
+  # ----------------------------------------------------------
+  # SERVICIO X: api-gateway
   # ----------------------------------------------------------
   api-gateway:
     build:
