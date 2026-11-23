@@ -44,4 +44,5 @@ public class NotificacionService {
     public void enviarCorreoGeneral(CorreoGeneralRequest req) {
         enviadorCorreo.enviar(req.getDestinatario(), req.getAsunto(), req.getCuerpoHtml());
     }
+    
 }

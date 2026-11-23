@@ -1,6 +1,7 @@
 package cl.induztek.clientes.controller;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +32,7 @@ public class EmpresaController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Empresa> obtenerEmpresaPorId(@PathVariable Long id) {
-        return service.obtenerPorId(id)
+        return Optional.ofNullable(service.obtenerPorId(id))
                 .map(empresa -> new ResponseEntity<>(empresa, HttpStatus.OK))
                 .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }

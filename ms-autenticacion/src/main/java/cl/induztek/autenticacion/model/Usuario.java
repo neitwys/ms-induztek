@@ -44,6 +44,9 @@ public class Usuario {
     @Column(name = "id_empresa_fk")
     private Long empresaId;
 
+    @Column(nullable = false)
+    private Boolean activo = true;
+
     @Column(name = "codigo_recuperacion")
     private String codigoRecuperacion;
 

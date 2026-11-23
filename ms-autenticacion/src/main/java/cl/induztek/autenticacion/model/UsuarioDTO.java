@@ -23,7 +23,7 @@ public class UsuarioDTO {
     @Size(max = 150, message = "El correo electrónico no puede tener más de 150 caracteres")
     private String correo;
 
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+    
     private String contrasena;
 
     private Long rol;
@@ -33,4 +33,6 @@ public class UsuarioDTO {
 
     @Column(name = "id_empresa_fk")
     private Long empresaId;
+
+    private Boolean activo = true;
 }

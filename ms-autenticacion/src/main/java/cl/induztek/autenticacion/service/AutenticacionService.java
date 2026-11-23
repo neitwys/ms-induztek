@@ -37,6 +37,7 @@ public class AutenticacionService {
         usuarioDTO.setRol(usuario.getRol());
         usuarioDTO.setFotoPerfil(usuario.getFotoPerfil());
         usuarioDTO.setEmpresaId(usuario.getEmpresaId());
+        usuarioDTO.setActivo(usuario.getActivo() != null ? usuario.getActivo() : true);
         return usuarioDTO;
     }
 
@@ -49,6 +50,7 @@ public class AutenticacionService {
         usuario.setRol(usuarioDTO.getRol());
         usuario.setFotoPerfil(usuarioDTO.getFotoPerfil());
         usuario.setEmpresaId(usuarioDTO.getEmpresaId());
+        usuario.setActivo(usuarioDTO.getActivo() != null ? usuario.getActivo() : true);
         if (usuarioDTO.getContrasena() != null && !usuarioDTO.getContrasena().isBlank()) {
             usuario.setContrasena(passwordEncoder.encode(usuarioDTO.getContrasena().trim()));
         }
@@ -57,20 +59,83 @@ public class AutenticacionService {
 
     // CREATE
     public UsuarioDTO guardarUsuario(UsuarioDTO usuarioDTO) {
-        if (repository.existsByCorreo(usuarioDTO.getCorreo().trim().toLowerCase())) {
+        String correoNormalizado = usuarioDTO.getCorreo().trim().toLowerCase();
+        if (repository.existsByCorreo(correoNormalizado)) {
             throw new IllegalArgumentException("El correo electrónico ya está registrado");
         }
 
         Usuario nuevoUsuario = aEntidad(usuarioDTO);
+        nuevoUsuario.setCorreo(correoNormalizado);
+
+        String claveTemporal = null;
+        if (usuarioDTO.getContrasena() == null || usuarioDTO.getContrasena().isBlank()) {
+            claveTemporal = generarClaveTemporal(10);
+            nuevoUsuario.setContrasena(passwordEncoder.encode(claveTemporal));
+        }
+
+        if (nuevoUsuario.getActivo() == null) {
+            nuevoUsuario.setActivo(true);
+        }
+
         Usuario guardado = repository.save(nuevoUsuario);
+
+        if (claveTemporal != null) {
+            enviarCorreoBienvenidaClaveTemporal(guardado, claveTemporal);
+        }
+
         return aDTO(guardado);
+    }
+
+    private String generarClaveTemporal(int longitud) {
+        final String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%";
+        StringBuilder sb = new StringBuilder(longitud);
+        for (int i = 0; i < longitud; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    private void enviarCorreoBienvenidaClaveTemporal(Usuario usuario, String claveTemporal) {
+        try {
+            String url = "http://ms-notificaciones:8082/api/notificaciones/correo";
+            String cuerpoHtml = """
+                    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto; border: 1px solid #e0e6ed; border-radius: 12px; overflow: hidden;">
+                      <div style="background-color: #0B1F3A; color: #ffffff; padding: 20px; text-align: center;">
+                        <h2 style="margin: 0;">INDUZTEK</h2>
+                        <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.85;">Plataforma de Gestión en Terreno</p>
+                      </div>
+                      <div style="padding: 24px; color: #1f2937;">
+                        <p>Hola <strong>%s</strong>,</p>
+                        <p>Se ha creado tu cuenta en la plataforma. Usa la siguiente clave temporal para iniciar sesión y activar tu acceso:</p>
+                        <div style="background-color: #f3f6fa; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+                          <span style="font-size: 24px; font-weight: bold; letter-spacing: 3px; color: #153B6E;">%s</span>
+                        </div>
+                        <p style="font-size: 13px; color: #4b5563;">Te recomendamos cambiar esta clave una vez que ingreses por primera vez.</p>
+                      </div>
+                    </div>
+                    """.formatted(usuario.getNombre(), claveTemporal);
+
+            Map<String, Object> datosCorreo = Map.of(
+                    "destinatario", usuario.getCorreo(),
+                    "asunto", "Activación de cuenta - Induztek",
+                    "cuerpoHtml", cuerpoHtml
+            );
+            restTemplate.postForObject(url, datosCorreo, Map.class);
+        } catch (Exception e) {
+            System.out.println("Aviso: no se pudo enviar correo de bienvenida: " + e.getMessage());
+        }
     }
 
     // LOGIN
     public UsuarioDTO autenticarUsuario(String correo, String contrasenaPlana) {
+        System.out.println("DEBUG LOGIN -> correo=[" + correo + "], pass=[" + contrasenaPlana + "]");
+
         Usuario usuario = repository.findByCorreo(correo.trim().toLowerCase());
         if (usuario == null || !passwordEncoder.matches(contrasenaPlana.trim(), usuario.getContrasena())) {
             throw new IllegalArgumentException("Correo o contraseña incorrectos");
+        }
+        if (Boolean.FALSE.equals(usuario.getActivo())) {
+            throw new IllegalArgumentException("Esta cuenta ha sido deshabilitada");
         }
         return aDTO(usuario);
     }
@@ -115,11 +180,26 @@ public class AutenticacionService {
         if (dto.getEmpresaId() != null) {
             usuarioExistente.setEmpresaId(dto.getEmpresaId());
         }
+        if (dto.getActivo() != null) {
+            usuarioExistente.setActivo(dto.getActivo());
+        }
         if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
             usuarioExistente.setContrasena(passwordEncoder.encode(dto.getContrasena().trim()));
         }
 
         return Optional.of(aDTO(repository.save(usuarioExistente)));
+    }
+
+    // SOFT DELETE (DESHABILITAR)
+    public boolean deshabilitar(Long id) {
+        Optional<Usuario> usuarioOpt = repository.findById(id);
+        if (usuarioOpt.isEmpty()) {
+            return false;
+        }
+        Usuario usuario = usuarioOpt.get();
+        usuario.setActivo(false);
+        repository.save(usuario);
+        return true;
     }
 
     // DELETE
@@ -176,6 +256,9 @@ public class AutenticacionService {
         Usuario usuario = repository.findByCorreo(correo.trim().toLowerCase());
         if (usuario == null) {
             throw new IllegalArgumentException("El correo ingresado no se encuentra registrado");
+        }
+        if (Boolean.FALSE.equals(usuario.getActivo())) {
+            throw new IllegalArgumentException("Esta cuenta ha sido deshabilitada");
         }
 
         String codigoPlano = String.format("%06d", random.nextInt(1_000_000));

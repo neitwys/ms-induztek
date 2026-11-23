@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -65,6 +66,16 @@ public class AutenticacionController {
             return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // SOFT DELETE (DESHABILITAR)
+    @PatchMapping("/usuarios/{id}/deshabilitar")
+    public ResponseEntity<Void> deshabilitar(@PathVariable Long id) {
+        if (service.deshabilitar(id)) {
+            return ResponseEntity.noContent().build(); // 204
+        } else {
+            return ResponseEntity.notFound().build(); // 404
         }
     }
 
