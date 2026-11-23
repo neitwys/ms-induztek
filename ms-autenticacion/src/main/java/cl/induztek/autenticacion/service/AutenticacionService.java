@@ -38,6 +38,7 @@ public class AutenticacionService {
         usuarioDTO.setFotoPerfil(usuario.getFotoPerfil());
         usuarioDTO.setEmpresaId(usuario.getEmpresaId());
         usuarioDTO.setActivo(usuario.getActivo() != null ? usuario.getActivo() : true);
+        usuarioDTO.setRequiereCambioClave(Boolean.TRUE.equals(usuario.getRequiereCambioClave()));
         return usuarioDTO;
     }
 
@@ -71,6 +72,7 @@ public class AutenticacionService {
         if (usuarioDTO.getContrasena() == null || usuarioDTO.getContrasena().isBlank()) {
             claveTemporal = generarClaveTemporal(10);
             nuevoUsuario.setContrasena(passwordEncoder.encode(claveTemporal));
+            nuevoUsuario.setRequiereCambioClave(true);
         }
 
         if (nuevoUsuario.getActivo() == null) {
@@ -113,13 +115,13 @@ public class AutenticacionService {
                         <p style="font-size: 13px; color: #4b5563;">Te recomendamos cambiar esta clave una vez que ingreses por primera vez.</p>
                       </div>
                     </div>
-                    """.formatted(usuario.getNombre(), claveTemporal);
+                    """
+                    .formatted(usuario.getNombre(), claveTemporal);
 
             Map<String, Object> datosCorreo = Map.of(
                     "destinatario", usuario.getCorreo(),
                     "asunto", "Activación de cuenta - Induztek",
-                    "cuerpoHtml", cuerpoHtml
-            );
+                    "cuerpoHtml", cuerpoHtml);
             restTemplate.postForObject(url, datosCorreo, Map.class);
         } catch (Exception e) {
             System.out.println("Aviso: no se pudo enviar correo de bienvenida: " + e.getMessage());
@@ -298,6 +300,19 @@ public class AutenticacionService {
         usuario.setContrasena(passwordEncoder.encode(nuevaContrasena.trim()));
         usuario.setCodigoRecuperacion(null);
         usuario.setExpiracionCodigo(null);
+        repository.save(usuario);
+    }
+
+    // CREAR PRIMERA CONTRASEÑA
+    public void crearPrimeraContrasena(Long id, String nuevaContrasena) {
+        Usuario usuario = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+
+        if (nuevaContrasena == null || nuevaContrasena.trim().length() < 8) {
+            throw new IllegalArgumentException("La nueva contraseña debe tener al menos 8 caracteres");
+        }
+        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena.trim()));
+        usuario.setRequiereCambioClave(false);
         repository.save(usuario);
     }
 }

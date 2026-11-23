@@ -23,7 +23,6 @@ public class UsuarioDTO {
     @Size(max = 150, message = "El correo electrónico no puede tener más de 150 caracteres")
     private String correo;
 
-    
     private String contrasena;
 
     private Long rol;
@@ -35,4 +34,6 @@ public class UsuarioDTO {
     private Long empresaId;
 
     private Boolean activo = true;
+
+    private Boolean requiereCambioClave;
 }

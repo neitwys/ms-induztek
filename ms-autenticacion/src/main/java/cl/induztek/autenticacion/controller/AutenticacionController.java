@@ -137,4 +137,16 @@ public class AutenticacionController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
+    // -- PRIMERA CONTRASEÑA -- //
+    @PutMapping("/{id}/primera-contrasena")
+    public ResponseEntity<?> crearPrimeraContrasena(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        try {
+            // Tendrás que crear este método en tu AutenticacionService
+            service.crearPrimeraContrasena(id, body.get("nuevaContrasena"));
+            return ResponseEntity.ok(Map.of("mensaje", "Primera contraseña guardada con éxito"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

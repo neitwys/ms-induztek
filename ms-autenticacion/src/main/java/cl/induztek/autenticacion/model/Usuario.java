@@ -52,4 +52,7 @@ public class Usuario {
 
     @Column(name = "expiracion_codigo")
     private LocalDateTime expiracionCodigo;
+
+    @Column(name = "requiere_cambio_clave")
+    private Boolean requiereCambioClave = false;
 }
