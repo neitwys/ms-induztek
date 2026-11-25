@@ -9,8 +9,12 @@ CREATE DATABASE IF NOT EXISTS db_autenticacion CHARACTER SET utf8mb4 COLLATE utf
 
 CREATE DATABASE IF NOT EXISTS db_clientes CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+CREATE DATABASE IF NOT EXISTS db_pruebas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 GRANT ALL PRIVILEGES ON db_autenticacion.* TO 'root' @'%';
 
 GRANT ALL PRIVILEGES ON db_clientes.* TO 'root' @'%';
+
+GRANT ALL PRIVILEGES ON db_pruebas.* TO 'root' @'%';
 
 FLUSH PRIVILEGES;

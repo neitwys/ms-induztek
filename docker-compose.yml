@@ -103,6 +103,25 @@ services:
       - microservicios-net
 
   # ----------------------------------------------------------
+  # SERVICIO 6: ms-pruebas
+  # ----------------------------------------------------------
+  ms-pruebas:
+    build:
+      context: ./ms-pruebas
+      dockerfile: Dockerfile
+    container_name: ms-pruebas
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: on-failure
+    networks:
+      - microservicios-net
+
+  # ----------------------------------------------------------
   # SERVICIO X: api-gateway
   # ----------------------------------------------------------
   api-gateway:
@@ -115,11 +134,13 @@ services:
     depends_on:
       eureka-server:
         condition: service_started
-      ms-autenticacion: 
+      ms-autenticacion:
         condition: service_started
       ms-notificaciones:
         condition: service_started
       ms-clientes:
+        condition: service_started
+      ms-pruebas:
         condition: service_started
     restart: on-failure
     networks:
