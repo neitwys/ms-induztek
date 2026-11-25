@@ -31,6 +31,7 @@ dependencies {
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.10")
 }
 
 dependencyManagement {
